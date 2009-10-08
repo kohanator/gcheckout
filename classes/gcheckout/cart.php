@@ -1,44 +1,101 @@
 <?php defined('SYSPATH') or die('No direct script access.');
-
+/**
+ * The <checkout-shopping-cart> tag is the root tag for a Checkout API request
+ * and contains all checkout-related information.
+ *
+ * @package    Google Checkout
+ * @copyright  (c) 2009 Woody Gilk
+ * @author     Woody Gilk
+ * @license    MIT
+ */
 class gCheckout_Cart extends gCheckout {
 
+	/**
+	 * @param   string   merchant id
+	 * @param   string   merchant key
+	 * @param   boolean  sandbox mode
+	 * @param   string   three-letter currency code
+	 * @return  gCheckout_Cart
+	 */
 	public static function factory($merchant_id, $merchant_key, $sandbox = NULL, $currency = NULL)
 	{
-		return new gCheckout_Cart($merchant_id, $merchant_key, $sandbox, $currency);
+		return new self($merchant_id, $merchant_key, $sandbox, $currency);
 	}
 
+	/**
+	 * @var  string  three-letter currency code
+	 */
 	public $currency = 'USD';
 
+	/**
+	 * @var  array  gCheckout_Item objects
+	 */
 	public $items = array();
 
+	/**
+	 * @var  string  request a credit card auth notification?
+	 */
 	public $request_auth;
 
+	/**
+	 * @var  string  cart expiration date (ISO 8601 formatted)
+	 */
 	public $good_until;
 
+	/**
+	 * @var  string  merchant private data (XML)
+	 */
 	public $merchant_data;
 
+	/**
+	 * @var  string  URL for the customer to edit the cart
+	 */
 	public $edit_cart_url;
 
+	/**
+	 * @var  string  URL for the customer to return to shopping
+	 */
 	public $continue_shopping_url;
 
+	/**
+	 * @var  array  gCheckout_Tax objects
+	 */
 	public $default_tax_table = array();
 
-	public $alternate_tax_table = array();
+	/**
+	 * @var  array  gCheckout_Tax_Table objects
+	 */
+	public $alternate_tax_tables = array();
 
+	/**
+	 * @var  array  gCheckout_Shipping objects
+	 */
 	public $shipping_methods = array();
 
+	/**
+	 * @var  array  gCheckout_Calculation objects
+	 */
 	public $merchant_calculations = array();
 
+	/**
+	 * @var  boolean  request buyer phone number?
+	 */
 	public $request_buyer_phone_number;
 
+	/**
+	 * @var  string  platform provider merchant id
+	 */
 	public $platform_id;
 
+	/**
+	 * @var  string  Google Analytics data
+	 */
 	public $analytics_data;
 
+	/**
+	 * @var  array  parameterized urls
+	 */
 	public $parameterized_urls = array();
-
-	// Build the merchant-checkout-flow-support tag
-	protected $_flow = FALSE;
 
 	public function __construct($merchant_id, $merchant_key, $sandbox = NULL, $currency = NULL)
 	{
@@ -53,6 +110,9 @@ class gCheckout_Cart extends gCheckout {
 	/**
 	 * The <item> tag contains information about an individual item listed in
 	 * the customer's shopping cart.
+	 *
+	 * [!!] Item currency will be overwritten by the cart currency because
+	 * Google Checkout does not support items with multiple currencies.
 	 *
 	 * @param   object   gCheckout_Item
 	 * @return  $this
@@ -78,6 +138,7 @@ class gCheckout_Cart extends gCheckout {
 	{
 		if ( ! is_string($value))
 		{
+			// Convert UNIX timestamp into a ISO 8601 timestamp
 			$value = date(DATE_ISO8601, $value);
 		}
 
@@ -113,7 +174,7 @@ class gCheckout_Cart extends gCheckout {
 	 * send an <authorization-amount-notification> when a credit card is
 	 * authorized for a new order.
 	 *
-	 * @param   boolean  value of request-initial-auth-details
+	 * @param   boolean  request a credit card auth notification?
 	 * @return  $this
 	 */
 	public function request_auth($value)
@@ -134,8 +195,6 @@ class gCheckout_Cart extends gCheckout {
 	 */
 	public function edit_cart_url($url)
 	{
-		$this->_flow = TRUE;
-
 		if (strpos($url, '://') === FALSE)
 		{
 			// Make a complete URL
@@ -156,8 +215,6 @@ class gCheckout_Cart extends gCheckout {
 	 */
 	public function continue_shopping_url($url)
 	{
-		$this->_flow = TRUE;
-
 		if (strpos($url, '://') === FALSE)
 		{
 			// Make a complete URL
@@ -179,8 +236,6 @@ class gCheckout_Cart extends gCheckout {
 	 */
 	public function default_tax(gCheckout_Tax $tax)
 	{
-		$this->_flow = TRUE;
-
 		$this->default_tax_table[] = $tax;
 
 		return $this;
@@ -196,17 +251,13 @@ class gCheckout_Cart extends gCheckout {
 	 */
 	public function alternate_tax_table(gCheckout_Tax_Table $table)
 	{
-		$this->_flow = TRUE;
-
-		$this->alternate_tax_table[] = $table;
+		$this->alternate_tax_tables[] = $table;
 
 		return $this;
 	}
 
 	public function shipping(gCheckout_Shipping $method)
 	{
-		$this->_flow = TRUE;
-
 		$this->shipping_methods[] = $method;
 
 		return $this;
@@ -214,44 +265,83 @@ class gCheckout_Cart extends gCheckout {
 
 	public function calculation(gCheckout_Calculation $calc)
 	{
-		$this->_flow = TRUE;
-
 		$this->merchant_calculations[] = $calc;
 
 		return $this;
 	}
 
+	/**
+	 * The <request-buyer-phone-number> tag indicates whether the customer
+	 * must enter a phone number to complete an order. If this tag's value
+	 * is true, the customer must enter a number, which Google Checkout will
+	 * return in the new order notification for the order.
+	 *
+	 * @param   boolean   request buyer phone number?
+	 * @return  $this
+	 */
 	public function request_phone_number($value)
 	{
-		$this->_flow = TRUE;
-
 		$this->request_buyer_phone_number = $value ? 'true' : 'false';
 
 		return $this;
 	}
 
+	/**
+	 * The <platform-id> tag should only be used by e-commerce providers who
+	 * make API requests on behalf of a merchant. The tag's value contains a
+	 * Google Checkout merchant ID that identifies the e-commerce provider.
+	 *
+	 * [!!] Note for e-commerce Providers: The Google Checkout Terms and Conditions
+	 *  require e-commerce providers that manage websites for merchants who are
+	 * affiliated with Google Checkout to identify themselves. The value of the
+	 * <platform-id> tag should be a Google Checkout Merchant ID that uniquely
+	 * identifies the e-commerce provider.
+	 *
+	 * In keeping with this requirement, e-commerce providers should sign up for
+	 * a Google Checkout merchant account. They should then use the merchant ID
+	 * for that account as the <platform-id> tag value in Checkout API requests
+	 * for all merchants using the provider's platform. However, providers
+	 * should still use the merchant IDs and merchant keys assigned to the
+	 * individual merchants to encode API requests from those merch
+	 *
+	 * @param   string   provider merchant id
+	 * @return  $this
+	 */
 	public function platform_id($value)
 	{
-		$this->_flow = TRUE;
-
 		$this->platform_id = $value;
 
 		return $this;
 	}
 
+	/**
+	 * The <analytics-data> tag enables merchants that submit server-to-server
+	 * Checkout API requests to use Google Analytics to track Checkout orders.
+	 * The [Using Google Analytics to Track Google Checkout Orders][1] document explains
+	 * how to retrieve the appropriate value for this tag.
+	 *
+	 * [1]: http://code.google.com/apis/checkout/developer/checkout_analytics_integration.html
+	 *
+	 * @param   string   Google Analytics data
+	 * @return  $this
+	 */
 	public function analytics($value)
 	{
-		$this->_flow = TRUE;
-
 		$this->analytics_data = $value;
 
 		return $this;
 	}
 
+	/**
+	 * The <parameterized-urls> tag contains information about all of the web
+	 * beacons that the merchant wants to add to the Google Checkout order
+	 * confirmation page.
+	 *
+	 * @param   object  gCheckout_URL
+	 * @return  $this
+	 */
 	public function parameterized_url(gCheckout_URL $url)
 	{
-		$this->_flow = TRUE;
-
 		$this->parameterized_urls[] = $url;
 
 		return $this;
@@ -262,87 +352,97 @@ class gCheckout_Cart extends gCheckout {
 		$xml = new DOMDocument('1.0', Kohana::$charset);
 		$xml->formatOutput = TRUE;
 
-		// Append create the root elements
+		// Create the root element
 		$xml->appendChild($root = $xml->createElementNS('http://checkout.google.com/schema/2', 'checkout-shopping-cart'));
+
+		// Create the cart and items
 		$root->appendChild($cart = $xml->createElement('shopping-cart'));
 		$cart->appendChild($items = $xml->createElement('items'));
 
 		foreach ($this->items as $item)
 		{
-			// Add each item
 			$item->build($xml, $items);
 		}
 
 		if ($this->good_until)
 		{
-			// Set the cart expiration date
 			$cart->appendChild($node = $xml->createElement('cart-expiration'));
 			$node->appendChild($xml->createElement('good-until-date', $this->good_until));
 		}
 
 		if ($this->merchant_data)
 		{
-			// Append merchant data
 			$cart->appendChild($xml->importNode($this->merchant_data, TRUE));
 		}
 
 		if ($this->request_auth)
 		{
-			// Request initial credit auth
 			$root->appendChild($node = $xml->createElement('order-processing-support'));
 			$node->appendChild($xml->createElement('request-initial-auth-details', $this->request_auth));
 		}
 
-		if ($this->_flow)
+		$root->appendChild($flow = $xml->createElement('checkout-flow-support'));
+		$flow->appendChild($flow = $xml->createElement('merchant-checkout-flow-support'));
+
+		if ($this->edit_cart_url)
 		{
-			$root->appendChild($flow = $xml->createElement('checkout-flow-support'));
-			$flow->appendChild($flow = $xml->createElement('merchant-checkout-flow-support'));
+			$flow->appendChild($xml->createElement('edit-cart-url', $this->edit_cart_url));
+		}
 
-			if ($this->edit_cart_url)
+		if ($this->continue_shopping_url)
+		{
+			$flow->appendChild($xml->createElement('continue-shopping-url', $this->continue_shopping_url));
+		}
+
+		if ($this->default_tax_table)
+		{
+			$flow->appendChild($tax_tables = $xml->createElement('tax-tables'));
+
+			$tax_tables->appendChild($table = $xml->createElement('default-tax-table'));
+			$table->appendChild($table = $xml->createElement('tax-rules'));
+
+			foreach ($this->default_tax_table as $tax)
 			{
-				$flow->appendChild($xml->createElement('edit-cart-url', $this->edit_cart_url));
+				$table->appendChild($rule = $xml->createElement('default-tax-rule'));
+
+				$tax->build($xml, $rule);
 			}
 
-			if ($this->continue_shopping_url)
+			if ($this->alternate_tax_tables)
 			{
-				$flow->appendChild($xml->createElement('continue-shopping-url', $this->continue_shopping_url));
-			}
+				$tax_tables->appendChild($table = $xml->createElement('alternate-tax-tables'));
 
-			if ($this->default_tax_table)
-			{
-				$flow->appendChild($tax_tables = $xml->createElement('tax-tables'));
-
-				$tax_tables->appendChild($table = $xml->createElement('default-tax-table'));
-				$table->appendChild($table = $xml->createElement('tax-rules'));
-
-				foreach ($this->default_tax_table as $tax)
+				foreach ($this->alternate_tax_tables as $tax)
 				{
-					$table->appendChild($rule = $xml->createElement('default-tax-rule'));
-
-					$tax->build($xml, $rule);
-				}
-
-				if ($this->alternate_tax_table)
-				{
-					$tax_tables->appendChild($table = $xml->createElement('alternate-tax-tables'));
-
-					foreach ($this->alternate_tax_table as $tax)
-					{
-						$tax->build($xml, $table);
-					}
+					$tax->build($xml, $table);
 				}
 			}
 		}
 
-		// if ($this->flow)
-		// {
-		// 	$root->appendChild($flow = $xml->createElement('checkout-flow-support'));
-		// 	$flow->appendChild($flow = $xml->createElement('merchant-checkout-flow-support'));
-		//
-		// 	$this->flow->build($flow, $xml);
-		//
-		// 	// edit-cart-url?, continue-shopping-url?, tax-tables?, shipping-methods?, merchant-calculations?, request-buyer-phone-number?, platform-id?, analytics-data?, parameterized-urls
-		// }
+		if ($this->request_buyer_phone_number)
+		{
+			$flow->appendChild($xml->createElement('request-buyer-phone-number', $this->request_buyer_phone_number));
+		}
+
+		if ($this->platform_id)
+		{
+			$flow->appendChild($xml->createElement('platform-id', $this->platform_id));
+		}
+
+		if ($this->analytics_data)
+		{
+			$flow->appendChild($xml->createElement('analytics-data', $this->analytics_data));
+		}
+
+		if ($this->parameterized_urls)
+		{
+			$flow->appendChild($list = $xml->createElement('parameterized-urls'));
+
+			foreach ($this->parameterized_urls as $url)
+			{
+				$url->build($xml, $list);
+			}
+		}
 
 		return $xml->saveXML();
 	}
