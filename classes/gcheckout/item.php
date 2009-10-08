@@ -67,7 +67,13 @@ class gCheckout_Item {
 
 	public function merchant_data($value)
 	{
-		$this->merchant_data = $value;
+		$xml = new DOMDocument('1.0', Kohana::$charset);
+
+		// Add the value to a root node
+		$xml->loadXML('<merchant-private-item-data>'.$value.'</merchant-private-item-data>');
+
+		// Capture the root node
+		$this->merchant_data = $xml->getElementsByTagName('merchant-private-item-data')->item(0);;
 
 		return $this;
 	}
@@ -110,7 +116,7 @@ class gCheckout_Item {
 
 		if ($this->merchant_data)
 		{
-			
+			$item->appendChild($xml->importNode($this->merchant_data, TRUE));
 		}
 
 		return $this;
