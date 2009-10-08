@@ -248,11 +248,11 @@ class gCheckout_Cart extends gCheckout {
 		return $this;
 	}
 
-	public function parameterized_urls($value)
+	public function parameterized_url(gCheckout_URL $url)
 	{
 		$this->_flow = TRUE;
 
-		$this->parameterized_urls = $value ? 'true' : 'false';
+		$this->parameterized_urls[] = $url;
 
 		return $this;
 	}
