@@ -1,6 +1,7 @@
 <?php defined('SYSPATH') or die('No direct script access.');
 /**
- * The <item> tag contains information about an individual item listed in the customer's shopping cart.
+ * The <item> tag contains information about an individual item listed in the
+ * customer's shopping cart.
  *
  * @package    Google Checkout
  * @copyright  (c) 2009 Woody Gilk
