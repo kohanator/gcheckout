@@ -1,24 +1,88 @@
 <?php defined('SYSPATH') or die('No direct script access.');
-
+/**
+ * The <item> tag contains information about an individual item listed in the
+ * customer's shopping cart.
+ *
+ * @package    Google Checkout
+ * @copyright  (c) 2009 Woody Gilk
+ * @author     Woody Gilk
+ * @license    MIT
+ */
 class gCheckout_Item {
 
-	public static function factory($name, $description, $quantity, $price, $currency = NULL)
+	/**
+	 * @param   string   item name
+	 * @param   string   item description
+	 * @param   integer  quantity
+	 * @param   float    price
+	 * @return  gCheckout_Item
+	 */
+	public static function factory($name, $description, $quantity, $price)
 	{
-		return new gCheckout_Item($name, $description, $quantity, $price, $currency);
+		return new self($name, $description, $quantity, $price);
 	}
 
+	/**
+	 * @var  string  item name
+	 */
 	public $name;
+
+	/**
+	 * @var  string  item description
+	 */
 	public $description;
+
+	/**
+	 * @var  integer  quantity
+	 */
 	public $quantity;
+
+	/**
+	 * @var  decimal  price
+	 */
 	public $price;
+
+	/**
+	 * @var  string   currency code
+	 */
 	public $currency = 'USD';
+
+	/**
+	 * @var  float  item weight
+	 */
 	public $weight;
+
+	/**
+	 * @var  string   weight unit
+	 */
 	public $unit = 'LB';
+
+	/**
+	 * @var  string  tax table name
+	 */
 	public $tax_table;
+
+	/**
+	 * @var  object  gCheckout_Digital
+	 */
 	public $digital_content;
+
+	/**
+	 * @var  string   merchant item id (SKU)
+	 */
 	public $merchant_id;
+
+	/**
+	 * @var  string  merchant item data
+	 */
 	public $merchant_data;
 
+	/**
+	 * @param   string   item name
+	 * @param   string   item description
+	 * @param   integer  quantity
+	 * @param   float    price
+	 */
 	public function __construct($name, $description, $quantity, $price)
 	{
 		// Set name and description
@@ -32,9 +96,17 @@ class gCheckout_Item {
 		$this->price = number_format($price, 2, '.', '');
 	}
 
+	/**
+	 * The <item-weight> tag specifies the weight of an individual item in the
+	 * customer's shopping cart.
+	 *
+	 * @param   float   item weight
+	 * @param   string  weight unit
+	 * @return  $this
+	 */
 	public function weight($value, $unit = NULL)
 	{
-		$this->weight = (int) round($value, 0);
+		$this->weight = (string) $value;
 
 		if ($unit)
 		{
@@ -44,6 +116,15 @@ class gCheckout_Item {
 		return $this;
 	}
 
+	/**
+	 * The <tax-table-selector> tag identifies an alternate tax table that
+	 * should be used to calculate tax for a particular item. The value of the
+	 * <tax-table-selector> tag should correspond to the value of the name
+	 * attribute of an alternate-tax-table.
+	 *
+	 * @param   string   alternate tax table name
+	 * @return  $this
+	 */
 	public function tax_table($value)
 	{
 		$this->tax_table = (string) $value;
@@ -51,6 +132,13 @@ class gCheckout_Item {
 		return $this;
 	}
 
+	/**
+	 * The <digital-content> tag contains information relating to digital
+	 * delivery of an item.
+	 *
+	 * @param   object  gCheckout_Digital
+	 * @return  $this
+	 */
 	public function digital_content(gCheckout_Digital $value)
 	{
 		$this->digital_content = $value;
@@ -58,6 +146,19 @@ class gCheckout_Item {
 		return $this;
 	}
 
+	/**
+	 * The <merchant-item-id> tag contains a value, such as a stock keeping
+	 * unit (SKU), that you use to uniquely identify an item. Google Checkout
+	 * will include this value in the merchant calculation callbacks and the
+	 * new order notification for the order. This value also appears in the
+	 * order information displayed in the Merchant Center.
+	 * 
+	 * [!!] To use the <merchant-item-id> to modify the shipping information for
+	 * an item in an order, you must have provided the same <merchant-item-id>
+	 * for that item in the Checkout API request for the order.
+	 * 
+	 * @param   string   merchant item id
+	 */
 	public function merchant_id($value)
 	{
 		$this->merchant_id = (string) $value;
@@ -65,16 +166,31 @@ class gCheckout_Item {
 		return $this;
 	}
 
+	/**
+	 * The <merchant-private-item-data> tag contains any well-formed XML sequence
+	 * that should accompany an individual item in an order. Google Checkout will
+	 * return this XML in the <merchant-calculation-callback> and the
+	 * <new-order-notification> for the order.
+	 * 
+	 * @param   string   XML string
+	 * @return  $this
+	 */
 	public function merchant_data($value)
 	{
-		$this->merchant_data = $value;
+		$xml = new DOMDocument('1.0', Kohana::$charset);
+
+		// Add the value to a root node
+		$xml->loadXML('<merchant-private-item-data>'.$value.'</merchant-private-item-data>');
+
+		// Capture the root node
+		$this->merchant_data = $xml->getElementsByTagName('merchant-private-item-data')->item(0);;
 
 		return $this;
 	}
 
-	public function build(DOMDocument $xml, DOMElement $items)
+	public function build(DOMDocument $xml, DOMElement $list)
 	{
-		$items->appendChild($item = $xml->createElement('item'));
+		$list->appendChild($item = $xml->createElement('item'));
 
 		$item->appendChild($xml->createElement('item-name', $this->name));
 		$item->appendChild($xml->createElement('item-description', $this->description));
@@ -99,7 +215,6 @@ class gCheckout_Item {
 		{
 			$item->appendChild($digital = $xml->createElement('digital-content'));
 
-			// Build digital content
 			$this->digital_content->build($xml, $digital);
 		}
 
@@ -110,10 +225,8 @@ class gCheckout_Item {
 
 		if ($this->merchant_data)
 		{
-			
+			$item->appendChild($xml->importNode($this->merchant_data, TRUE));
 		}
-
-		return $this;
 	}
 
 } // End gCheckout_Item

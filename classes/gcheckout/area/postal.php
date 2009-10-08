@@ -20,7 +20,6 @@
  * @author     Woody Gilk
  * @license    MIT
  */
-
 class gCheckout_Area_Postal extends gCheckout_Area {
 
 	/**
