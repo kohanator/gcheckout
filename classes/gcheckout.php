@@ -40,9 +40,6 @@ abstract class gCheckout {
 		// Get the server response
 		$response = Remote::get($url, array(
 
-			// Require SSL connections
-			CURLOPT_PROTOCOLS  => CURLPROTO_HTTPS,
-
 			// Use Basic auth
 			CURLOPT_USERPWD    => $this->merchant_id.':'.$this->merchant_key,
 
